@@ -1,10 +1,14 @@
+import HTTP_STATUS from "http-status-codes";
 import Logger from "bunyan";
 import http from "http";
 import cors from "cors";
+import hpp from "hpp";
+import compression from "compression";
 import { createClient } from "redis";
 import { createAdapter } from "@socket.io/redis-adapter";
 import "express-async-errors";
 import { Server as SocketServer } from "socket.io";
+import applicationRoutes from "./routes";
 
 import {
   Application,
@@ -15,6 +19,7 @@ import {
   NextFunction,
 } from "express";
 import { config } from "./config";
+import { CustomError, IErrorResponse } from "./shared/helpers/error-handler";
 
 const SERVER_PORT = 5600;
 const log: Logger = config.createLogger("server");
@@ -27,7 +32,24 @@ export class Server {
   }
 
   public start(): void {
+    this.securityMiddlware(this.app);
+    this.standardMiddleware(this.app);
+    this.routesMiddleware(this.app);
+    this.globalErrorHandler(this.app);
     this.startServer(this.app);
+  }
+
+  private securityMiddlware(app: Application): void {
+    // app.set('trust')
+    app.use(hpp());
+    app.use(
+      cors({
+        origin: "*",
+        credentials: true,
+        optionsSuccessStatus: 200,
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      })
+    );
   }
 
   private async startServer(app: Application): Promise<void> {
@@ -43,6 +65,40 @@ export class Server {
     } catch (error) {
       log.error(error);
     }
+  }
+
+  private standardMiddleware(app: Application): void {
+    app.use(compression());
+    app.use(json({ limit: "50mb" }));
+    app.use(urlencoded({ extended: true, limit: "50mb" }));
+  }
+
+  private routesMiddleware(app: Application): void {
+    applicationRoutes(app);
+  }
+
+  // monitoring
+
+  private globalErrorHandler(app: Application): void {
+    app.all("*", (req: Request, res: Response) => {
+      res
+        .status(HTTP_STATUS.NOT_FOUND)
+        .json({ message: `${req.originalUrl} not found` });
+    });
+    app.use(
+      (
+        error: IErrorResponse,
+        _req: Request,
+        res: Response,
+        next: NextFunction
+      ) => {
+        log.error(error);
+        if (error instanceof CustomError) {
+          return res.status(error.statusCode).json(error.serializeErrors());
+        }
+        next();
+      }
+    );
   }
 
   private async createSocketIO(httpServer: http.Server): Promise<SocketServer> {
