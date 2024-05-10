@@ -9,3 +9,21 @@ export interface IMerchantDocument extends Document {
   phone?: string;
   password?: string;
 }
+
+export interface IMerchantJob {
+  keyOne?: string;
+  keyTwo?: string;
+  key?: string;
+  value?: string | IMerchantDocument;
+}
+
+export interface IEmailJob {
+  receiverEmail: string;
+  template: string;
+  subject: string;
+}
+
+export interface IAllMerchants {
+  merchants: IMerchantDocument[];
+  totalMerchants: number;
+}

@@ -1,3 +1,4 @@
+import { IMerchantDocument } from "./../../v0/interfaces/merchant.interface";
 import { Document } from "mongoose";
 import { ObjectId } from "mongodb";
 
@@ -13,6 +14,7 @@ export interface AuthPayload {
   userId: string;
   email: string;
   username: string;
+  userType: string;
   iat?: number;
 }
 

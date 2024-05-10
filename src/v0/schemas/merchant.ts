@@ -6,6 +6,11 @@ const merchantSignupSchema: ObjectSchema = Joi.object().keys({
     "string.max": "Length should not be more than 50",
     "string.empty": "Fullname is a required field",
   }),
+  username: Joi.string()
+    .required()
+    .min(4)
+    .max(10)
+    .messages({ "string.base": "username is invalid" }),
   password: Joi.string().required().min(5).max(8).messages({
     "string.min": "Invalid password length (should be minimum 5 characters)",
     "string.max": "Invalid password lengthh (should be maximum 8 characters)",
