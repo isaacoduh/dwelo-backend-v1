@@ -1,3 +1,4 @@
+import { MerchantCache } from "./../../utils/redis/merchant.cache";
 import HTTP_STATUS from "http-status-codes";
 import { IAuthDocument } from "./../../auth/interfaces/auth.interface";
 import { config } from "./../../config";
@@ -5,10 +6,15 @@ import { Helpers } from "./../../shared/helpers/helpers";
 import { merchantQueue } from "./../../shared/services/queues/merchant.queue";
 import { BadRequestError } from "./../../shared/helpers/error-handler";
 import { merchantService } from "./../services/merchant.service";
-import { IMerchantDocument } from "./../interfaces/merchant.interface";
+import {
+  IMerchantDocument,
+  IMerchantSignupData,
+} from "./../interfaces/merchant.interface";
 import { Request, Response } from "express";
 import JWT from "jsonwebtoken";
 import { ObjectId } from "mongodb";
+
+const merchantCache: MerchantCache = new MerchantCache();
 
 const createMerchant = async (req: Request, res: Response): Promise<void> => {
   const { fullname, username, email, phone, password } = req.body;
@@ -20,6 +26,27 @@ const createMerchant = async (req: Request, res: Response): Promise<void> => {
   }
 
   const merchantObjectId: ObjectId = new ObjectId();
+  const mId = `${Helpers.generateRandomIntegers(12)}`;
+
+  const merchantDataForAuth: IMerchantDocument = merchantSignupData({
+    _id: merchantObjectId,
+    mId,
+    username,
+    email,
+    password,
+    fullname,
+    phone,
+  });
+  // add to redis cache
+  const merchantDataForCache: IMerchantDocument = merchantData(
+    merchantDataForAuth,
+    merchantObjectId
+  );
+  await merchantCache.saveMerchantToCache(
+    `${merchantObjectId}`,
+    mId,
+    merchantDataForCache
+  );
 
   // add to database
   merchantQueue.addMerchantJob("addMerchantToDB", {
@@ -64,5 +91,35 @@ const signToken = (
     config.JWT_TOKEN!
   );
 };
+
+const merchantSignupData = (data: IMerchantSignupData): IMerchantDocument => {
+  const { _id, username, fullname, email, phone, mId, password } = data;
+  return {
+    _id,
+    mId,
+    username: Helpers.firstLetterUppercase(username),
+    email: Helpers.lowerCase(email),
+    fullname: fullname,
+    phone: phone,
+    password,
+    createdAt: new Date(),
+  } as IMerchantDocument;
+};
+
+function merchantData(
+  data: IMerchantDocument,
+  merchantObjectId: ObjectId
+): IMerchantDocument {
+  const { fullname, username, email, phone, password, mId } = data;
+  return {
+    _id: merchantObjectId,
+    mId,
+    username: Helpers.firstLetterUppercase(username!),
+    email,
+    fullname,
+    phone,
+    password,
+  } as unknown as IMerchantDocument;
+}
 
 export { createMerchant };
